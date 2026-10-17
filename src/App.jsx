@@ -1,52 +1,113 @@
 import axios from "axios"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import Card from "./components/Card"
-const App = () => {
 
+const App = () => {
   const [userdata, setUserdata] = useState([])
   const [index, setIndex] = useState(1)
-  const [nextData, setNextData] = useState([])
-  const getData = async () => {
-    const response = await axios.get(`https://picsum.photos/v2/list?page=${index}&limit=20`)
-    setUserdata(response.data)
-    setNextData([])
+  const [loading, setLoading] = useState(false)
+  const fetchingRef = useRef(false)
 
+  const getData = async () => {
+    if (loading || fetchingRef.current) return
+    fetchingRef.current = true
+    setLoading(true)
+    try {
+      const response = await axios.get(`https://picsum.photos/v2/list?page=${index}&limit=20`)
+      setUserdata((prev) => {
+        const existingIds = new Set(prev.map(item => item.id))
+        const newItems = response.data.filter(item => !existingIds.has(item.id))
+        return [...prev, ...newItems]
+      })
+    } catch (error) {
+      console.error("Error fetching data:", error)
+    } finally {
+      setLoading(false)
+      fetchingRef.current = false
+    }
   }
 
   useEffect(() => {
     getData()
-
-    axios.get(`https://picsum.photos/v2/list?page=${index + 1}&limit=20`)
-      .then(response => setNextData(response.data))
   }, [index])
 
+  useEffect(() => {
+    let ticking = false
+
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 300) {
+            if (!loading) {
+              setIndex((prevIndex) => prevIndex + 1)
+            }
+          }
+          ticking = false
+        })
+        ticking = true
+      }
+    }
+
+    window.addEventListener("scroll", handleScroll, { passive: true })
+    return () => window.removeEventListener("scroll", handleScroll)
+  }, [loading])
+
   let printUserData = Array.from({ length: 12 }).map((_, i) => (
-    <div key={i} className="mb-4 break-inside-avoid">
-      <div style={{height:`${Math.floor(Math.random()*100)+150}px`}} className="w-full rounded-xl bg-gray-800 animate-pulse"></div>
-      <div className="h-5 w-24 mt-2 rounded bg-gray-800 animate-pulse"></div>
+    <div key={i} className="mb-4 sm:mb-6 break-inside-avoid bg-neutral-900/40 rounded-2xl p-2.5 border border-white/5">
+      <div style={{ height: `${Math.floor(Math.random() * 100) + 150}px` }} className="w-full rounded-xl bg-neutral-800 animate-pulse"></div>
+      <div className="flex items-center justify-between mt-3 px-1">
+        <div className="h-4 w-28 rounded bg-neutral-800 animate-pulse"></div>
+        <div className="h-8 w-8 rounded-full bg-neutral-800 animate-pulse"></div>
+      </div>
     </div>
   ))
+
   if (userdata.length > 0) {
     printUserData = userdata.map(function (elem, idx) {
-      return <div key={idx}>
-        <Card elem={elem} />
-      </div>
+      return (
+        <div key={`${elem.id}-${idx}`} className="mb-4 sm:mb-6 break-inside-avoid">
+          <Card elem={elem} />
+        </div>
+      )
     })
   }
 
+  const paginationSkeletons = Array.from({ length: 4 }).map((_, i) => (
+    <div key={`skeleton-${i}`} className="mb-4 sm:mb-6 break-inside-avoid bg-neutral-900/40 rounded-2xl p-2.5 border border-white/5">
+      <div style={{ height: `${Math.floor(Math.random() * 80) + 160}px` }} className="w-full rounded-xl bg-neutral-800 animate-pulse"></div>
+      <div className="flex items-center justify-between mt-3 px-1">
+        <div className="h-4 w-24 rounded bg-neutral-800 animate-pulse"></div>
+        <div className="h-8 w-8 rounded-full bg-neutral-800 animate-pulse"></div>
+      </div>
+    </div>
+  ))
+
   return (
-    <div className="bg-black h-screen p-4 text-white overflow-auto">
-      <div >
-        <h1 style={{ fontFamily: "Times New Roman", textShadow: "0 0 10px rgba(59, 130, 246, 0.8), 0 0 20px rgba(59, 130, 246, 0.5)", textShadow: '0px 0px 8px rgba(255, 255, 255, 0.6)' }} className="h-[33%] w-full flex flex-col items-center justify-center text-9xl md:text-[9rem] font-extralight tracking-wide text-center mb-46 mt-30 ">Gallery
-          <span className="mt-6 h-0.5 bg-white w-120 bg-gradient-r via-purple-400 to-transparent shadow-[0_0_12px_4px_rgba(168,85,247,0.5)]"></span></h1>
-        <div className="columns-2 md:columns-3 lg:columns-4 gap-4 ">{printUserData}</div>
+    <div className="bg-black min-h-screen p-2 sm:p-4 text-white overflow-auto">
+      <div>
+        <h1 
+          style={{ 
+            fontFamily: "Times New Roman", 
+            textShadow: '0px 0px 8px rgba(255, 255, 255, 0.6)' 
+          }} 
+          className="w-full flex flex-col items-center justify-center text-6xl sm:text-8xl md:text-[9rem] font-extralight tracking-wide text-center my-12 md:my-30"
+        >
+          Gallery
+          <span className="mt-4 sm:mt-6 h-0.5 w-32 sm:w-80 md:w-120 bg-linear-to-r via-purple-400 to-transparent shadow-[0_0_12px_4px_rgba(168,85,247,0.5)]"></span>
+        </h1>
+        
+        {/* Main Feed Grid - Denser multi-column layout */}
+        <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 xl:columns-6 gap-3 sm:gap-6 px-1 sm:px-0">
+          {printUserData}
+        </div>
       </div>
 
-      <div className="flex justify-center items-center gap-4 md:gap-10 p-4">
-        <button style={{ opacity: index == 1 ? 0.5 : 1 }} onClick={() => { if (index > 1) { setIndex(index - 1); } else { alert('You are alrady in the first page') } }} className="bg-amber-400 text-sm cursor-pointer active:scale-95 text-black rounded-lg md:px-4 md:py-2 p-4 py-2 font-bold">Prev</button>
-        <h1 className=" flex text-2xl">Page {index}</h1>
-        <button onClick={() => { setIndex(index + 1); setUserdata(nextData) }} className="bg-amber-400 text-sm cursor-pointer active:scale-95 text-black rounded p-4 py-2 md:px-4 md:py-2 font-bold">Next</button>
-      </div>
+      {/* Show pagination skeletons at the bottom when loading next pages */}
+      {loading && userdata.length > 0 && (
+        <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 xl:columns-6 gap-3 sm:gap-6 px-1 sm:px-0 mt-6">
+          {paginationSkeletons}
+        </div>
+      )}
     </div>
   )
 }
